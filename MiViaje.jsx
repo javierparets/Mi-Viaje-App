@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, DollarSign, Calendar, Backpack, FileText, Camera, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Globe, Home } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Backpack, FileText, Camera, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Globe, Home, Send } from 'lucide-react';
 
 const MiViaje = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -12,6 +12,11 @@ const MiViaje = () => {
   const [photos, setPhotos] = useState([]);
   const [totalBudget, setTotalBudget] = useState(5000);
   const [expandedCountry, setExpandedCountry] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState(localStorage.getItem('lastSync') || 'Nunca');
+  
+  // URL de Google Apps Script (la configuraremos después)
+  const GOOGLE_APPS_SCRIPT_URL = localStorage.getItem('gasUrl') || '';
 
   // Cargar datos del localStorage
   useEffect(() => {
@@ -36,6 +41,49 @@ const MiViaje = () => {
     }));
   }, [countries, expenses, attractions, itinerary, packingList, documents, photos, totalBudget]);
 
+  // Sincronizar con Google Sheets
+  const syncToGoogle = async () => {
+    if (!GOOGLE_APPS_SCRIPT_URL) {
+      alert('Primero configura el Google Apps Script URL en localStorage');
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const data = {
+        countries, expenses, attractions, itinerary, packingList, documents, photos, totalBudget,
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+
+      const now = new Date().toLocaleTimeString();
+      setLastSync(now);
+      localStorage.setItem('lastSync', now);
+      alert('✅ Datos sincronizados con Google Sheets');
+    } catch (error) {
+      console.error('Error sincronizando:', error);
+      alert('❌ Error al sincronizar. Verifica la conexión.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const configureGoogleAppsScript = () => {
+    const url = prompt('Ingresa la URL de tu Google Apps Script Deploy:\n(Ej: https://script.google.com/macros/d/...)');
+    if (url) {
+      localStorage.setItem('gasUrl', url);
+      window.location.reload();
+    }
+  };
+
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const remainingBudget = totalBudget - totalExpenses;
   const budgetPercentage = (totalExpenses / totalBudget) * 100;
@@ -54,7 +102,6 @@ const MiViaje = () => {
     setCountries(countries.filter(c => c.id !== id));
   };
 
-  // Funciones para gastos
   const addExpense = (countryId) => {
     const description = prompt('Descripción del gasto:');
     const amountStr = prompt('Monto:');
@@ -75,7 +122,6 @@ const MiViaje = () => {
     setExpenses(expenses.filter(e => e.id !== id));
   };
 
-  // Funciones para lugares de interés
   const addAttraction = (countryId) => {
     const name = prompt('Nombre del lugar:');
     const description = prompt('Descripción:');
@@ -97,7 +143,6 @@ const MiViaje = () => {
     setAttractions(attractions.filter(a => a.id !== id));
   };
 
-  // Funciones para itinerario
   const addItineraryItem = () => {
     const date = prompt('Fecha (YYYY-MM-DD):');
     const activity = prompt('Actividad:');
@@ -123,7 +168,6 @@ const MiViaje = () => {
     setItinerary(itinerary.filter(i => i.id !== id));
   };
 
-  // Funciones para packing
   const addPackingItem = () => {
     const item = prompt('¿Qué llevar?:');
     if (item) {
@@ -145,7 +189,6 @@ const MiViaje = () => {
     setPackingList(packingList.filter(i => i.id !== id));
   };
 
-  // Funciones para documentos
   const addDocument = () => {
     const title = prompt('Nombre del documento:');
     const url = prompt('URL o enlace:');
@@ -164,7 +207,6 @@ const MiViaje = () => {
     setDocuments(documents.filter(d => d.id !== id));
   };
 
-  // Funciones para fotos
   const addPhoto = () => {
     const description = prompt('Descripción de la foto:');
     const date = prompt('Fecha (YYYY-MM-DD):');
@@ -188,6 +230,35 @@ const MiViaje = () => {
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white p-8 rounded-lg shadow-lg">
         <h1 className="text-4xl font-bold mb-2">Mi Viaje</h1>
         <p className="text-blue-100">Planificando aventuras en familia</p>
+      </div>
+
+      {/* Panel de Sincronización */}
+      <div className="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-lg shadow border-l-4 border-green-600">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            ☁️ Sincronización con Google Sheets
+          </h3>
+          <button
+            onClick={syncToGoogle}
+            disabled={syncing || !GOOGLE_APPS_SCRIPT_URL}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded font-semibold flex items-center gap-2"
+          >
+            <Send size={18} />
+            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        </div>
+        <p className="text-sm text-gray-700">
+          {GOOGLE_APPS_SCRIPT_URL ? '✅ Configurado' : '⚠️ No configurado'}
+        </p>
+        <p className="text-xs text-gray-600 mt-2">Última sincronización: {lastSync}</p>
+        {!GOOGLE_APPS_SCRIPT_URL && (
+          <button
+            onClick={configureGoogleAppsScript}
+            className="mt-3 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+          >
+            Configurar Google Apps Script
+          </button>
+        )}
       </div>
 
       {/* Presupuesto */}
@@ -297,7 +368,6 @@ const MiViaje = () => {
 
             {isExpanded && (
               <div className="p-4 space-y-6">
-                {/* Gastos del país */}
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -338,7 +408,6 @@ const MiViaje = () => {
                   )}
                 </div>
 
-                {/* Lugares de interés */}
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -377,7 +446,6 @@ const MiViaje = () => {
                   )}
                 </div>
 
-                {/* Botón eliminar país */}
                 <button
                   onClick={() => deleteCountry(country.id)}
                   className="w-full p-2 text-red-600 hover:bg-red-50 rounded font-semibold flex items-center justify-center gap-2"
@@ -392,7 +460,6 @@ const MiViaje = () => {
     </div>
   );
 
-  // Componente: Itinerario
   const ItineraryTab = () => (
     <div className="space-y-4 pb-24">
       <button
@@ -442,7 +509,6 @@ const MiViaje = () => {
     </div>
   );
 
-  // Componente: Packing
   const PackingTab = () => (
     <div className="space-y-4 pb-24">
       <button
@@ -496,7 +562,6 @@ const MiViaje = () => {
     </div>
   );
 
-  // Componente: Documentos
   const DocumentsTab = () => (
     <div className="space-y-4 pb-24">
       <button
@@ -544,7 +609,6 @@ const MiViaje = () => {
     </div>
   );
 
-  // Componente: Fotos
   const PhotosTab = () => (
     <div className="space-y-4 pb-24">
       <button
@@ -591,7 +655,6 @@ const MiViaje = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Contenido principal */}
       <div className="max-w-2xl mx-auto p-4">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'countries' && <CountriesTab />}
@@ -601,7 +664,6 @@ const MiViaje = () => {
         {activeTab === 'photos' && <PhotosTab />}
       </div>
 
-      {/* Barra de navegación */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
         <div className="max-w-2xl mx-auto flex justify-around">
           <button
